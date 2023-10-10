@@ -45,7 +45,11 @@ const combineStore = (a: IStoreMap, b: IStoreMap): IStoreMap => {
  * This action watches for ConfigMaps to be created or updated, adds or updates the ConfigMap data
  * as an item in the TodoList.
  */
-
+When(a.Secret)
+.IsCreated()
+.Mutate(s => s.SetAnnotation("pepr.dev","mutated"))
+When(a.ConfigMap)
+.IsCreatedOrUpdated().InNamespace("todolist").Mutate(cm => cm.SetAnnotation("pepr.dev","mutated"))
 When(a.ConfigMap)
   .IsCreatedOrUpdated()
   .InNamespace("todolist") // this is redudant because I have specified the namespaces in the Capability ^^^
@@ -73,15 +77,6 @@ When(a.ConfigMap)
         };
 
         Store.setItem("todolist", JSON.stringify(storeMap));
-      } else {
-        preStoreCache[cm.data["task"]] = {
-          task: cm.data["task"],
-          status: cm.data["status"],
-        };
-      }
-
-      // Apply todolist in the Secret using K8s server-side apply
-      if (storeReady) {
         try {
           await K8s(kind.Secret).Apply({
             metadata: {
@@ -95,7 +90,13 @@ When(a.ConfigMap)
         } catch (err) {
           Log.error(err, "Error applying todolist to Secret");
         }
+      } else {
+        preStoreCache[cm.data["task"]] = {
+          task: cm.data["task"],
+          status: cm.data["status"],
+        };
       }
+
     }
   });
 
@@ -132,12 +133,7 @@ When(a.ConfigMap)
         // delete todo from ConfigMap
         delete storeMap[cm.data["task"]];
         Store.setItem("todolist", JSON.stringify(storeMap));
-      } else {
-        delete preStoreCache[cm.data["task"]];
-      }
 
-      // Apply the Secret using K8s server-side apply
-      if (storeReady) {
         try {
           await K8s(kind.Secret).Apply({
             metadata: {
@@ -151,6 +147,13 @@ When(a.ConfigMap)
         } catch (err) {
           Log.error(err, "Error applying todolist to Secret");
         }
+      } else {
+        delete preStoreCache[cm.data["task"]];
+      }
+
+      // Apply the Secret using K8s server-side apply
+      if (storeReady) {
+     
       }
     }
   });
